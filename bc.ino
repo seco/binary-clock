@@ -1,9 +1,9 @@
 // VCC GND CLK DAT RST
 
-#include "FastLED.h"
-#include <stdio.h>
 #include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
+#include "FastLED.h"
+#include <stdio.h>
 #include <Time.h>        //http://www.arduino.cc/playground/Code/Time
 #include <Timezone.h>    //https://github.com/JChristensen/Timezone
 #include <Wire.h>
@@ -18,13 +18,6 @@
 // Which colors for each digit? These are named COLOR_XY where X is the index of the digit,
 // (1,2 for hours; 3,4 for minutes; 5,6 for seconds) and Y is the state of the bit,
 // (0 for off, 1 for on)
-//#define COLOR_10 0x010000
-//#define COLOR_20 0x010100
-//#define COLOR_30 0x000100
-//#define COLOR_40 0x000101
-//#define COLOR_50 0x000001
-//#define COLOR_60 0x010001
-
 #define COLOR_10 0x000000
 #define COLOR_20 0x000000
 #define COLOR_30 0x000000
@@ -39,21 +32,9 @@
 #define COLOR_51 0x000010
 #define COLOR_61 0x100010
 
-// Define the array of leds
-CRGB leds[NUM_LEDS];
-
-// Set the appropriate digital I/O pin connections. These are the pin
-// assignments for the Arduino as well for as the DS1302 chip. See the DS1302
-// datasheet:
-//
-//   http://datasheets.maximintegrated.com/en/ds/DS1302.pdf
-const int kCePin   = D3;  // Chip Enable
-const int kIoPin   = D4;  // Input/Output
-const int kSclkPin = D5;  // Serial Clock
-
+/**************** WIFI ****************/
 char ssid[] = "**********";  //  your network SSID (name)
 char pass[] = "**********";       // your network password
-
 
 unsigned int localPort = 2390;      // local port to listen for UDP packets
 
@@ -63,12 +44,25 @@ unsigned int localPort = 2390;      // local port to listen for UDP packets
 IPAddress timeServerIP; // time.nist.gov NTP server address
 const char* ntpServerName = "time.nist.gov";
 
+// Define the array of leds
+CRGB leds[NUM_LEDS];
+
 const int NTP_PACKET_SIZE = 48; // NTP time stamp is in the first 48 bytes of the message
 
 byte packetBuffer[ NTP_PACKET_SIZE]; //buffer to hold incoming and outgoing packets
 
 // A UDP instance to let us send and receive packets over UDP
 WiFiUDP udp;
+
+/**************** TIMEZONE ****************/
+// Set the appropriate digital I/O pin connections. These are the pin
+// assignments for the Arduino as well for as the DS1302 chip. See the DS1302
+// datasheet:
+//
+//   http://datasheets.maximintegrated.com/en/ds/DS1302.pdf
+const int kCePin   = D3;  // Chip Enable
+const int kIoPin   = D4;  // Input/Output
+const int kSclkPin = D5;  // Serial Clock
 
 //EU Central Time Zone (New York, Detroit)
 TimeChangeRule myDST = {"CEST", Last, Sun, Mar, 2, 120};    //Daylight time = UTC + 2 hours
@@ -78,20 +72,41 @@ Timezone myTZ(myDST, mySTD);
 TimeChangeRule *tcr;        //pointer to the time change rule, use to get TZ abbrev
 time_t utc, local;
 
-bool sync = false;
+bool sync = true;
 
 RTC_DS3231 rtc;
 
 char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 
-void setup() { 
-  FastLED.addLeds<NEOPIXEL, DATA_PIN>(leds, NUM_LEDS);
+void setup() {
 
+  /**************** WIFI ****************/
   Serial.begin(115200);
   Serial.println();
   Serial.println();
 
-  delay(3000); // wait for console opening
+  // We start by connecting to a WiFi network
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+  WiFi.begin(ssid, pass);
+  
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("");
+  
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
+
+  Serial.println("Starting UDP");
+  udp.begin(localPort);
+  Serial.print("Local port: ");
+  Serial.println(udp.localPort());
+  
+  /**************** FASTLED ****************/
+  FastLED.addLeds<NEOPIXEL, DATA_PIN>(leds, NUM_LEDS);
 
   if (! rtc.begin()) {
     Serial.println("Couldn't find RTC");
@@ -105,6 +120,7 @@ void setup() {
     // This line sets the RTC with an explicit date & time, for example to set
     // January 21, 2014 at 3am you would call:
     // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
+    sync = false;
   }
 
   syncTime();
@@ -116,7 +132,7 @@ void loop() {
   // Get the current time and date from the chip.
   DateTime now = rtc.now();
 
-  if(now.hour() % 2 == 0 && now.minute() == 28){
+  if(now.hour() % 4 == 0 && now.minute() == 0){
     sync = false;
   }
 
@@ -208,31 +224,6 @@ unsigned long sendNTPpacket(IPAddress& address)
 }
 
 void syncTime(){
-  if(WiFi.status() != WL_CONNECTED){
-//    WiFi.hostname("ESP_binary_clock");
-    
-  
-    // We start by connecting to a WiFi network
-    Serial.print("Connecting to ");
-    Serial.println(ssid);
-    WiFi.begin(ssid, pass);
-    
-    while (WiFi.status() != WL_CONNECTED) {
-      delay(500);
-      Serial.print(".");
-    }
-    Serial.println("");
-  
-    Serial.println("WiFi connected");
-    Serial.println("IP address: ");
-    Serial.println(WiFi.localIP());
-  
-    Serial.println("Starting UDP");
-    udp.begin(localPort);
-    Serial.print("Local port: ");
-    Serial.println(udp.localPort());
-  }
-
   //get a random server from the pool
   WiFi.hostByName(ntpServerName, timeServerIP); 
 
@@ -290,6 +281,22 @@ void syncTime(){
 
     utc = epoch;
     local = myTZ.toLocal(utc, &tcr);
+
+    Serial.print("The UTC time is ");       // UTC is the time at Greenwich Meridian (GMT)
+    Serial.print(hour(utc), DEC);
+    Serial.print(':');
+    Serial.print(minute(utc), DEC);
+    Serial.print(':');
+    Serial.print(second(utc), DEC);
+    Serial.println();
+
+    Serial.print("The local time is ");     // local is the time in Amsterdam (CET / CEST)
+    Serial.print(hour(local), DEC);
+    Serial.print(':');
+    Serial.print(minute(local), DEC);
+    Serial.print(':');
+    Serial.print(second(local), DEC);
+    Serial.println();
     
     // Set the time and date on the chip.
     rtc.adjust(DateTime(year(local), month(local), day(local), hour(local), minute(local), second(local)));
