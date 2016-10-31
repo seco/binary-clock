@@ -33,8 +33,8 @@
 #define COLOR_61 0x100010
 
 /**************** WIFI ****************/
-char ssid[] = "**********";  //  your network SSID (name)
-char pass[] = "**********";       // your network password
+char ssid[] = "";  //  your network SSID (name)
+char pass[] = "";       // your network password
 
 unsigned int localPort = 2390;      // local port to listen for UDP packets
 
@@ -77,6 +77,9 @@ bool sync = true;
 RTC_DS3231 rtc;
 
 char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+
+// digital pin D3 has a powerswitch attached to it. Give it a name:
+int powerSwitch = D3;
 
 void setup() {
 
@@ -123,7 +126,8 @@ void setup() {
     sync = false;
   }
 
-  syncTime();
+  // make the powerswitch's pin an input:
+  pinMode(powerSwitch, INPUT);
 
 }
 
@@ -132,11 +136,11 @@ void loop() {
   // Get the current time and date from the chip.
   DateTime now = rtc.now();
 
-  if(now.hour() % 4 == 0 && now.minute() == 0){
+  if(now.hour() % 20 == 0 && now.minute() == 50){
     sync = false;
   }
 
-  if((now.second() == 0 && !sync)){
+  if((now.second() % 10 == 0 && !sync)){
     syncTime();
   }
 
@@ -145,53 +149,60 @@ void loop() {
   int min[] = {now.minute() / 10, now.minute() % 10};
   int sec[] = {now.second() / 10, now.second() % 10};
 
-  for (int i = 0; i < 2; i++) {
-    if (hr[0] % 2) {
-      leds[i] = COLOR_11;
-    } else {
-      leds[i] = COLOR_10;
+  if(digitalRead(powerSwitch)){
+    for (int i = 0; i < 2; i++) {
+      if (hr[0] % 2) {
+        leds[i] = COLOR_11;
+      } else {
+        leds[i] = COLOR_10;
+      }
+      hr[0] = hr[0] / 2;
     }
-    hr[0] = hr[0] / 2;
+    for (int i = 2; i < 6; i++) {
+      if (hr[1] % 2) {
+        leds[i] = COLOR_21;
+      } else {
+        leds[i] = COLOR_20;
+      }
+      hr[1] = hr[1] / 2;
+    }
+    for (int i = 6; i < 9; i++) {
+      if (min[0] % 2) {
+        leds[i] = COLOR_31;
+      } else {
+        leds[i] = COLOR_30;
+      }
+      min[0] = min[0] / 2;
+    }
+    for (int i = 9; i < 13; i++) {
+      if (min[1] % 2) {
+        leds[i] = COLOR_41;
+      } else {
+        leds[i] = COLOR_40;
+      }
+      min[1] = min[1] / 2;
+    }
+    for (int i = 13; i < 16; i++) {
+      if (sec[0] % 2) {
+        leds[i] = COLOR_51;
+      } else {
+        leds[i] = COLOR_50;
+      }
+      sec[0] = sec[0] / 2;
+    }
+    for (int i = 16; i < 20; i++) {
+      if (sec[1] % 2) {
+        leds[i] = COLOR_61;
+      } else {
+        leds[i] = COLOR_60;
+      }
+      sec[1] = sec[1] / 2;
+    }
   }
-  for (int i = 2; i < 6; i++) {
-    if (hr[1] % 2) {
-      leds[i] = COLOR_21;
-    } else {
-      leds[i] = COLOR_20;
+  else {
+    for (int i = 0; i < 20; i++) {
+     leds[i] = 0x000000;
     }
-    hr[1] = hr[1] / 2;
-  }
-  for (int i = 6; i < 9; i++) {
-    if (min[0] % 2) {
-      leds[i] = COLOR_31;
-    } else {
-      leds[i] = COLOR_30;
-    }
-    min[0] = min[0] / 2;
-  }
-  for (int i = 9; i < 13; i++) {
-    if (min[1] % 2) {
-      leds[i] = COLOR_41;
-    } else {
-      leds[i] = COLOR_40;
-    }
-    min[1] = min[1] / 2;
-  }
-  for (int i = 13; i < 16; i++) {
-    if (sec[0] % 2) {
-      leds[i] = COLOR_51;
-    } else {
-      leds[i] = COLOR_50;
-    }
-    sec[0] = sec[0] / 2;
-  }
-  for (int i = 16; i < 20; i++) {
-    if (sec[1] % 2) {
-      leds[i] = COLOR_61;
-    } else {
-      leds[i] = COLOR_60;
-    }
-    sec[1] = sec[1] / 2;
   }
   
   FastLED.show();
