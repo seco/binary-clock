@@ -78,8 +78,8 @@ RTC_DS3231 rtc;
 
 char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 
-// digital pin D3 has a powerswitch attached to it. Give it a name:
-int powerSwitch = D3;
+// digital pin D8 has a powerswitch attached to it. Give it a name:
+int powerSwitch = D8;
 
 void setup() {
 
